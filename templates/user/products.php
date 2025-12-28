@@ -8,9 +8,9 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>Name</th>
+          <th>产品名称</th>
           <th>Delivery</th>
-          <th>Billing</th>
+          <th>计费方式</th>
           <th></th>
         </tr>
       </thead>
