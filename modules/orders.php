@@ -6,7 +6,11 @@ function orders_controller_list_user(): void
 {
     $user = require_login();
     $orders = db_fetch_all(
-        'SELECT o.*, p.name AS product_name\n         FROM orders o\n         JOIN products p ON p.id = o.product_id\n         WHERE o.user_id = :uid\n         ORDER BY o.id DESC LIMIT 200',
+        'SELECT o.*, p.name AS product_name
+         FROM orders o
+         JOIN products p ON p.id = o.product_id
+         WHERE o.user_id = :uid
+         ORDER BY o.id DESC LIMIT 200',
         ['uid' => (int)$user['id']]
     );
 
@@ -20,7 +24,7 @@ function orders_controller_buy(): void
     $productId = (int)($_GET['product_id'] ?? ($_POST['product_id'] ?? 0));
     $product = db_fetch_one("SELECT * FROM products WHERE id = :id AND status = 'active'", ['id' => $productId]);
     if (!$product) {
-        flash_set('error', 'Product not found.');
+        flash_set('error', '产品未找到。');
         redirect(url_with_action('index.php', 'products'));
     }
 
@@ -64,13 +68,15 @@ function orders_controller_buy(): void
                         if ($amount > 0) {
                             db_exec('UPDATE users SET balance = balance - :amt WHERE id = :id', ['amt' => $amount, 'id' => (int)$user['id']]);
                             db_exec(
-                                "INSERT INTO transactions (user_id, change_amount, type, ref_type, ref_id, `desc`)\n                                 VALUES (:uid, :amt, 'consume', 'order', NULL, :d)",
-                                ['uid' => (int)$user['id'], 'amt' => -$amount, 'd' => 'Purchase: ' . (string)$product['name']]
+                                "INSERT INTO transactions (user_id, change_amount, type, ref_type, ref_id, `desc`)
+                                         VALUES (:uid, :amt, 'consume', 'order', NULL, :d)",
+                                ['uid' => (int)$user['id'], 'amt' => -$amount, 'd' => '购买: ' . (string)$product['name']]
                             );
                         }
 
                         db_exec(
-                            "INSERT INTO orders (user_id, product_id, amount, status, billing_cycle, paid_at)\n                             VALUES (:uid, :pid, :amt, 'paid', :cycle, NOW())",
+                            "INSERT INTO orders (user_id, product_id, amount, status, billing_cycle, paid_at)
+                             VALUES (:uid, :pid, :amt, 'paid', :cycle, NOW())",
                             [
                                 'uid' => (int)$user['id'],
                                 'pid' => (int)$product['id'],
@@ -95,7 +101,10 @@ function orders_controller_buy(): void
                         }
 
                         db_exec(
-                            "INSERT INTO services\n                             (user_id, product_id, order_id, status, delivery_mode, expire_at, meter_started_at, last_billed_at, unit_price_per_second)\n                             VALUES\n                             (:uid, :pid, :oid, 'pending', :dm, :expire_at, :ms, :lb, :ups)",
+                            "INSERT INTO services
+                             (user_id, product_id, order_id, status, delivery_mode, expire_at, meter_started_at, last_billed_at, unit_price_per_second)
+                             VALUES
+                             (:uid, :pid, :oid, 'pending', :dm, :expire_at, :ms, :lb, :ups)",
                             [
                                 'uid' => (int)$user['id'],
                                 'pid' => (int)$product['id'],
@@ -114,7 +123,7 @@ function orders_controller_buy(): void
                         db_exec("UPDATE orders SET status = 'provisioning' WHERE id = :id", ['id' => $orderId]);
 
                         db()->commit();
-                        flash_set('success', 'Order created. Waiting for delivery/activation.');
+                        flash_set('success', '订单创建成功，正在开通中...');
                         redirect(url_with_action('index.php', 'services'));
                     }
                 } catch (Throwable $e) {
@@ -136,7 +145,11 @@ function admin_orders_controller_list(): void
 {
     require_admin();
     $orders = db_fetch_all(
-        'SELECT o.*, u.email AS user_email, p.name AS product_name\n         FROM orders o\n         JOIN users u ON u.id = o.user_id\n         JOIN products p ON p.id = o.product_id\n         ORDER BY o.id DESC LIMIT 300'
+        'SELECT o.*, u.email AS user_email, p.name AS product_name
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         JOIN products p ON p.id = o.product_id
+         ORDER BY o.id DESC LIMIT 300'
     );
     render('admin/orders_list.php', ['orders' => $orders], 'admin/layout.php');
 }

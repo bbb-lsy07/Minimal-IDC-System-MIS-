@@ -6,7 +6,11 @@ function services_controller_list_user(): void
 {
     $user = require_login();
     $services = db_fetch_all(
-        'SELECT s.*, p.name AS product_name\n         FROM services s\n         JOIN products p ON p.id = s.product_id\n         WHERE s.user_id = :uid\n         ORDER BY s.id DESC LIMIT 200',
+        'SELECT s.*, p.name AS product_name
+         FROM services s
+         JOIN products p ON p.id = s.product_id
+         WHERE s.user_id = :uid
+         ORDER BY s.id DESC LIMIT 200',
         ['uid' => (int)$user['id']]
     );
 
@@ -19,12 +23,16 @@ function services_controller_detail_user(): void
     $id = (int)($_GET['id'] ?? 0);
 
     $service = db_fetch_one(
-        'SELECT s.*, p.name AS product_name, p.billing_mode\n         FROM services s\n         JOIN products p ON p.id = s.product_id\n         WHERE s.id = :id AND s.user_id = :uid\n         LIMIT 1',
+        'SELECT s.*, p.name AS product_name, p.billing_mode
+         FROM services s
+         JOIN products p ON p.id = s.product_id
+         WHERE s.id = :id AND s.user_id = :uid
+         LIMIT 1',
         ['id' => $id, 'uid' => (int)$user['id']]
     );
 
     if (!$service) {
-        flash_set('error', 'Service not found.');
+        flash_set('error', '服务未找到。');
         redirect(url_with_action('index.php', 'services'));
     }
 
@@ -53,27 +61,27 @@ function services_controller_reboot_user(): void
     $id = (int)($_POST['id'] ?? 0);
     $service = db_fetch_one('SELECT * FROM services WHERE id = :id AND user_id = :uid LIMIT 1', ['id' => $id, 'uid' => (int)$user['id']]);
     if (!$service) {
-        flash_set('error', 'Service not found.');
+        flash_set('error', '服务未找到。');
         redirect(url_with_action('index.php', 'services'));
     }
 
     if (($service['ip'] ?? '') === '' || ($service['username'] ?? '') === '' || ($service['password_enc'] ?? '') === '') {
-        flash_set('error', 'Service connection info not set.');
+        flash_set('error', '服务连接信息未设置。');
         redirect(url_with_action('index.php', 'service', ['id' => $id]));
     }
 
     try {
         $pass = decrypt_secret((string)$service['password_enc']);
     } catch (Throwable $e) {
-        flash_set('error', 'Unable to decrypt password.');
+        flash_set('error', '密码解密失败。');
         redirect(url_with_action('index.php', 'service', ['id' => $id]));
     }
 
     $res = remote_reboot((string)$service['ip'], (int)$service['port'], (string)$service['username'], $pass);
     if ($res['ok']) {
-        flash_set('success', 'Reboot command sent.');
+        flash_set('success', '重启命令已发送。');
     } else {
-        flash_set('error', 'Reboot failed: ' . (string)$res['error']);
+        flash_set('error', '重启失败: ' . (string)$res['error']);
     }
 
     redirect(url_with_action('index.php', 'service', ['id' => $id]));
@@ -136,7 +144,7 @@ function admin_services_controller_install_monitor(): void
     }
 
     if (!csrf_verify($_POST['csrf_token'] ?? null)) {
-        flash_set('error', 'Invalid CSRF token.');
+        flash_set('error', '无效的CSRF令牌。');
         redirect(url_with_action('admin.php', 'services'));
     }
 
@@ -180,7 +188,11 @@ function admin_services_controller_list(): void
 {
     require_admin();
     $services = db_fetch_all(
-        'SELECT s.*, u.email AS user_email, p.name AS product_name\n         FROM services s\n         JOIN users u ON u.id = s.user_id\n         JOIN products p ON p.id = s.product_id\n         ORDER BY s.id DESC LIMIT 300'
+        'SELECT s.*, u.email AS user_email, p.name AS product_name
+         FROM services s
+         JOIN users u ON u.id = s.user_id
+         JOIN products p ON p.id = s.product_id
+         ORDER BY s.id DESC LIMIT 300'
     );
     render('admin/services_list.php', ['services' => $services], 'admin/layout.php');
 }
@@ -191,19 +203,24 @@ function admin_services_controller_deliver(): void
 
     $id = (int)($_GET['id'] ?? ($_POST['id'] ?? 0));
     $service = db_fetch_one(
-        'SELECT s.*, u.email AS user_email, p.name AS product_name\n         FROM services s\n         JOIN users u ON u.id = s.user_id\n         JOIN products p ON p.id = s.product_id\n         WHERE s.id = :id\n         LIMIT 1',
+        'SELECT s.*, u.email AS user_email, p.name AS product_name
+         FROM services s
+         JOIN users u ON u.id = s.user_id
+         JOIN products p ON p.id = s.product_id
+         WHERE s.id = :id
+         LIMIT 1',
         ['id' => $id]
     );
 
     if (!$service) {
-        flash_set('error', 'Service not found.');
+        flash_set('error', '服务未找到。');
         redirect(url_with_action('admin.php', 'services'));
     }
 
     $errors = [];
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!csrf_verify($_POST['csrf_token'] ?? null)) {
-            $errors[] = 'Invalid CSRF token.';
+            $errors[] = '无效的CSRF令牌。';
         } else {
             $ip = trim((string)($_POST['ip'] ?? ''));
             $port = (int)($_POST['port'] ?? 22);
@@ -236,9 +253,9 @@ function admin_services_controller_deliver(): void
                         db_exec("UPDATE orders SET status = 'active' WHERE id = :oid", ['oid' => (int)$service['order_id']]);
                     }
                     db()->commit();
-                    flash_set('success', 'Service delivered/activated.');
+                    flash_set('success', '服务已交付/激活。');
                     redirect(url_with_action('admin.php', 'services'));
-                } catch (Throwable $e) {
+                    } catch (Throwable $e) {
                     db()->rollBack();
                     throw $e;
                 }
