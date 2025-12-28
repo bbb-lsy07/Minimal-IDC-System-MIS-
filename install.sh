@@ -1,167 +1,144 @@
 #!/bin/bash
+set -u
 
 # ==========================================
-# Minimal IDC System (MIS) 自动部署脚本
-# 适用系统: Ubuntu 20.04/22.04 LTS / Debian 10/11/12
-# 支持宝塔面板等环境
+# MIS Enhanced Auto-Deployment Script (Production Ready)
+# Supported: Ubuntu 20.04/22.04/24.04, Debian 10/11/12
 # ==========================================
 
-# 设置颜色
+# Color definitions
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 配置参数
-DB_NAME="mis"
-DB_USER="mis_user"
-DB_PASS=$(openssl rand -base64 12 2>/dev/null || openssl rand -hex 12)
-APP_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p)
+# Default configuration
 INSTALL_DIR="/var/www/mis"
 GITHUB_REPO="https://github.com/bbb-lsy07/Minimal-IDC-System-MIS-.git"
-
-# 默认管理员账号
+DB_NAME="mis"
+DB_USER="mis_user"
+DB_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9')
+APP_KEY=$(openssl rand -hex 32)
 ADMIN_EMAIL="admin@example.com"
 ADMIN_PASS="admin123"
 
-# 打印带颜色的消息
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+# Logging functions
+log_info() { echo -e "${GREEN}[INFO] $1${NC}"; }
+log_warn() { echo -e "${YELLOW}[WARN] $1${NC}"; }
+log_error() { echo -e "${RED}[ERROR] $1${NC}"; }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# 检查是否为 Root 用户
+# 1. Check root privileges
 if [ "$EUID" -ne 0 ]; then
-    log_error "请使用 sudo 或 root 权限运行此脚本"
+    log_error "Please run with root privileges: sudo bash install.sh"
     exit 1
 fi
 
-log_info "开始部署 Minimal IDC System (MIS)..."
+# 2. Get domain name (for Nginx and SSL)
+echo -e "${BLUE}=================================================${NC}"
+echo -e "${BLUE}       Minimal IDC System (MIS) Installation      ${NC}"
+echo -e "${BLUE}=================================================${NC}"
+echo ""
+echo "Enter your domain name (e.g., panel.example.com)"
+echo "For local testing or IP-only access, press Enter directly"
+read -p "Domain: " DOMAIN_INPUT
 
-# 检测是否在宝塔面板环境中
-BT_PANEL=false
-if [ -f "/www/server/panel/class/common.py" ] || [ -d "/www/server/panel" ]; then
-    BT_PANEL=true
-    log_warn "检测到宝塔面板环境，将使用现有 Nginx 配置"
+if [ -z "$DOMAIN_INPUT" ]; then
+    SERVER_NAME="_"
+    USE_SSL=false
+    PUBLIC_IP=$(curl -s4 ifconfig.me || hostname -I | awk '{print $1}')
+    BASE_URL="http://${PUBLIC_IP}"
+    log_warn "No domain entered, using IP mode: ${BASE_URL}"
+else
+    SERVER_NAME="$DOMAIN_INPUT"
+    USE_SSL=true
+    BASE_URL="https://${SERVER_NAME}"
+    log_info "Using domain: ${SERVER_NAME} (will attempt SSL certificate)"
 fi
 
-# ============================================
-# 步骤 1: 更新系统并安装依赖
-# ============================================
-log_info "步骤 1/7: 更新系统并安装依赖..."
+# 3. System initialization and dependency installation
+log_info "Step 1: Initializing system environment..."
 
+# Prevent apt interactive prompts from hanging
 export DEBIAN_FRONTEND=noninteractive
+# Fix possible apt locks
+rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* 2>/dev/null || true
 
 apt-get update -y
+apt-get install -y software-properties-common curl git unzip wget cron ufw lsb-release ca-certificates apt-transport-https
 
-# 安装基础依赖
-if [ "$BT_PANEL" = false ]; then
-    apt-get install -y git curl unzip nginx mariadb-server mariadb-client
-else
-    log_info "跳过 Nginx/MariaDB 安装 (宝塔面板已安装)"
+# Enable universe repository (for Ubuntu, ensures php-ssh2 availability)
+if grep -q "Ubuntu" /etc/issue 2>/dev/null || grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
+    add-apt-repository universe -y
 fi
 
-# 安装 PHP 及扩展
-PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "8.1")
-log_info "检测到 PHP 版本: $PHP_VER"
+# Install Nginx and MariaDB
+log_info "Installing Nginx & MariaDB..."
+apt-get install -y nginx mariadb-server mariadb-client
 
-# 安装 PHP 扩展 (尝试多个版本)
-for ver in "8.3" "8.2" "8.1" "8.0"; do
-    if apt-cache show php${ver}-fpm >/dev/null 2>&1; then
-        PHP_VER=$ver
+# 4. Install PHP and extensions
+log_info "Step 2: Installing PHP environment..."
+
+# Attempt to install PHP 8.1, 8.2 or 8.3
+PHP_VER=""
+for v in "8.2" "8.1" "8.3"; do
+    if apt-cache show php$v-fpm >/dev/null 2>&1; then
+        PHP_VER="$v"
         break
     fi
 done
 
-log_info "将安装 PHP $PHP_VER 扩展..."
-
-# 注意: PHP 8.x 已内置 json 扩展，无需单独安装 php*-json
-apt-get install -y php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-curl php${PHP_VER}-mbstring php${PHP_VER}-xml php${PHP_VER}-ssh2 php${PHP_VER}-cli 2>/dev/null || \
-apt-get install -y php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-curl php${PHP_VER}-mbstring php${PHP_VER}-xml php${PHP_VER}-cli 2>/dev/null || \
-log_warn "部分 PHP 扩展安装失败，继续执行..."
-
-# ============================================
-# 步骤 2: 配置数据库
-# ============================================
-log_info "步骤 2/7: 配置数据库 (MariaDB)..."
-
-# 启动数据库服务
-if [ "$BT_PANEL" = false ]; then
-    systemctl start mariadb 2>/dev/null || service mariadb start 2>/dev/null
-    systemctl enable mariadb 2>/dev/null
+if [ -z "$PHP_VER" ]; then
+    log_warn "No suitable PHP version found, adding ppa:ondrej/php..."
+    add-apt-repository ppa:ondrej/php -y
+    apt-get update -y
+    PHP_VER="8.2"
 fi
 
-# 安全配置 (自动回复)
-mysql -e "DROP DATABASE IF EXISTS test;" 2>/dev/null
-mysql -e "DELETE FROM mysql.user WHERE User='';" 2>/dev/null
-mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1');" 2>/dev/null
-mysql -e "FLUSH PRIVILEGES;" 2>/dev/null
+log_info "Detected PHP Version: $PHP_VER"
 
-# 创建数据库和用户
-mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null
-mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';" 2>/dev/null
-mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';" 2>/dev/null
-mysql -e "FLUSH PRIVILEGES;" 2>/dev/null
+# Install PHP and core extensions (key: ssh2, curl, mysql)
+apt-get install -y php${PHP_VER}-fpm php${PHP_VER}-cli php${PHP_VER}-mysql php${PHP_VER}-curl \
+    php${PHP_VER}-mbstring php${PHP_VER}-xml php${PHP_VER}-zip php${PHP_VER}-bcmath \
+    php${PHP_VER}-ssh2 libssh2-1-dev
 
-log_info "数据库 ${DB_NAME} 和用户 ${DB_USER} 已创建"
+# Verify ssh2 extension loaded (common issue in fresh environments)
+if ! php -m | grep -q 'ssh2'; then
+    log_warn "PHP-SSH2 extension not detected, attempting manual installation..."
+    apt-get install -y php-ssh2 || log_error "Failed to install php-ssh2. Remote management features may be limited."
+fi
 
-# ============================================
-# 步骤 3: 下载项目代码
-# ============================================
-log_info "步骤 3/7: 下载项目代码..."
+# 5. Configure database
+log_info "Step 3: Initializing database..."
+systemctl start mariadb 2>/dev/null || service mariadb start
+systemctl enable mariadb 2>/dev/null || true
+
+# Idempotent operations - safe to run multiple times
+mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
+mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
+mysql -e "FLUSH PRIVILEGES;"
+
+# 6. Deploy code
+log_info "Step 4: Deploying code to $INSTALL_DIR ..."
 
 if [ -d "$INSTALL_DIR" ]; then
-    log_warn "目录 $INSTALL_DIR 已存在，正在备份..."
+    log_warn "Directory exists, backing up..."
     mv "$INSTALL_DIR" "${INSTALL_DIR}_backup_$(date +%s)"
 fi
 
-git clone "$GITHUB_REPO" "$INSTALL_DIR"
+git clone "$GITHUB_REPO" "$INSTALL_DIR" || { log_error "Git clone failed"; exit 1; }
 
-if [ ! -d "$INSTALL_DIR" ]; then
-    log_error "无法下载代码，请检查 GitHub 仓库地址"
-    exit 1
-fi
+# Import SQL schema
+mysql "${DB_NAME}" < "$INSTALL_DIR/sql/schema.sql"
 
-log_info "代码已下载到 $INSTALL_DIR"
-
-# ============================================
-# 步骤 4: 导入数据库结构 & 创建管理员
-# ============================================
-log_info "步骤 4/7: 导入数据库结构 & 创建管理员..."
-
-# 导入 Schema
-mysql "$DB_NAME" < "$INSTALL_DIR/sql/schema.sql" 2>/dev/null
-
-# 生成管理员密码 Hash
+# Create initial administrator
 ADMIN_HASH=$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_DEFAULT);")
+mysql "${DB_NAME}" -e "INSERT IGNORE INTO users (id, email, password_hash, balance, status, is_admin) VALUES (1, '${ADMIN_EMAIL}', '${ADMIN_HASH}', 9999, 'active', 1);"
 
-# 插入管理员账号
-mysql "$DB_NAME" -e "INSERT INTO users (email, password_hash, balance, status, is_admin) VALUES ('${ADMIN_EMAIL}', '${ADMIN_HASH}', 9999, 'active', 1);" 2>/dev/null
-
-log_info "默认管理员账号已创建: ${ADMIN_EMAIL} / ${ADMIN_PASS}"
-
-# ============================================
-# 步骤 5: 生成配置文件
-# ============================================
-log_info "步骤 5/7: 生成配置文件..."
-
-# 获取服务器 IP
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')
-BASE_URL="http://${SERVER_IP}"
-
+# Generate configuration file
 cat > "$INSTALL_DIR/config.local.php" <<EOF
 <?php
-/**
- * Local configuration - Auto-generated by install.sh
- * 这个文件会被 .gitignore 忽略，请妥善保管
- */
 return [
     'db' => [
         'dsn' => 'mysql:host=127.0.0.1;dbname=${DB_NAME};charset=utf8mb4',
@@ -170,49 +147,34 @@ return [
     ],
     'app_key' => '${APP_KEY}',
     'base_url' => '${BASE_URL}',
+    'timezone' => 'Asia/Shanghai',
 ];
 EOF
 
-log_info "配置文件已生成: $INSTALL_DIR/config.local.php"
+log_info "Configuration file generated: $INSTALL_DIR/config.local.php"
 
-# ============================================
-# 步骤 6: 配置 Nginx
-# ============================================
-log_info "步骤 6/7: 配置 Nginx..."
+# 7. Configure Nginx
+log_info "Step 5: Configuring web server..."
 
-# 检测 PHP-FPM socket 路径
-PHP_SOCKET=""
-for sock in "/run/php/php${PHP_VER}-fpm.sock" "/var/run/php/php${PHP_VER}-fpm.sock" "/tmp/php-cgi-${PHP_VER}.sock"; do
-    if [ -S "$sock" ]; then
-        PHP_SOCKET=$sock
-        break
-    fi
-done
+# Find PHP socket
+PHP_SOCK=$(find /run/php -name "php*-fpm.sock" 2>/dev/null | head -n 1)
+[ -z "$PHP_SOCK" ] && PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
 
-# 如果找不到，尝试自动查找
-if [ -z "$PHP_SOCKET" ]; then
-    PHP_SOCKET=$(find /run /var/run -name "php*-fpm.sock" 2>/dev/null | head -1)
-fi
+# Remove default config
+rm -f /etc/nginx/sites-enabled/default
 
-# 如果还是找不到，使用默认路径
-if [ -z "$PHP_SOCKET" ]; then
-    PHP_SOCKET="/run/php/php${PHP_VER}-fpm.sock"
-fi
-
-log_info "PHP-FPM socket: $PHP_SOCKET"
-
-if [ "$BT_PANEL" = true ]; then
-    log_info "宝塔面板环境请在面板中添加网站:"
-    echo "  - 根目录: $INSTALL_DIR"
-    echo "  - PHP版本: $PHP_VER"
-    echo "  - 伪静态: 参考下方配置"
-else
-    cat > /etc/nginx/sites-available/mis <<EOF
+# Write Nginx config
+cat > /etc/nginx/sites-available/mis <<EOF
 server {
     listen 80;
-    server_name _;
-    root $INSTALL_DIR;
+    server_name ${SERVER_NAME};
+    root ${INSTALL_DIR};
     index index.php index.html;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
 
     access_log /var/log/nginx/mis_access.log;
     error_log /var/log/nginx/mis_error.log;
@@ -221,19 +183,16 @@ server {
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
 
+    # PHP handling
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:${PHP_SOCKET};
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_pass unix:${PHP_SOCK};
+        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
     }
 
-    location ~ /\.git {
-        deny all;
-        return 404;
-    }
-
-    location ~ ^/(sql|includes|templates|config\.local\.php|\.env) {
+    # Deny access to sensitive directories
+    location ~ ^/(\.git|sql|includes|templates|storage|\.env|config\.local\.php) {
         deny all;
         return 404;
     }
@@ -245,63 +204,48 @@ server {
 }
 EOF
 
-    ln -sf /etc/nginx/sites-available/mis /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/mis /etc/nginx/sites-enabled/
 
-    if nginx -t 2>/dev/null; then
-        systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null
-        log_info "Nginx 配置已应用"
-    else
-        log_error "Nginx 配置测试失败，请手动检查"
-    fi
+# Firewall configuration
+log_info "Configuring firewall (UFW)..."
+ufw allow OpenSSH 2>/dev/null || true
+ufw allow 'Nginx Full' 2>/dev/null || true
+# Enable UFW if not running (non-interactive)
+echo "y" | ufw enable 2>/dev/null || true
+
+# 8. SSL certificate issuance (Certbot)
+if [ "$USE_SSL" = true ]; then
+    log_info "Step 6: Applying for SSL certificate..."
+    apt-get install -y certbot python3-certbot-nginx
+    certbot --nginx --non-interactive --agree-tos -m "$ADMIN_EMAIL" -d "$SERVER_NAME" || log_warn "SSL certificate application failed. Ensure domain $SERVER_NAME resolves to this server IP. You can run 'certbot --nginx' manually later."
 fi
 
-# ============================================
-# 步骤 7: 设置权限与定时任务
-# ============================================
-log_info "步骤 7/7: 设置权限与定时任务..."
-
-# 设置文件权限
-chown -R www-data:www-data "$INSTALL_DIR" 2>/dev/null || chown -R www-data:www-data "$INSTALL_DIR" 2>/dev/null || true
+# 9. Permissions and Cron
+log_info "Step 7: Final configuration..."
+chown -R www-data:www-data "$INSTALL_DIR" 2>/dev/null || chown -R nginx:nginx "$INSTALL_DIR" 2>/dev/null || true
 chmod -R 755 "$INSTALL_DIR"
 chmod 640 "$INSTALL_DIR/config.local.php" 2>/dev/null || true
 
-# 添加 Cron 任务
-CRON_JOB="* * * * * cd $INSTALL_DIR && /usr/bin/php cron.php all >> /var/log/mis_cron.log 2>&1"
+# Add cron task (remove old, add new)
+CRON_CMD="cd $INSTALL_DIR && /usr/bin/php cron.php all >> /var/log/mis_cron.log 2>&1"
+(crontab -l 2>/dev/null | grep -v "mis_cron.log"; echo "$CRON_CMD") | crontab -
 
-if crontab -l 2>/dev/null | grep -F "$INSTALL_DIR" > /dev/null; then
-    log_warn "定时任务已存在，跳过添加"
-else
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    log_info "定时任务已添加"
-fi
+# Restart services
+systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null
+systemctl restart php${PHP_VER}-fpm 2>/dev/null || true
 
-# ============================================
-# 完成
-# ============================================
-echo ""
 echo -e "${GREEN}==============================================${NC}"
-echo -e "${GREEN}   安装完成! Minimal IDC System 已部署     ${NC}"
+echo -e "${GREEN}   Installation Complete!                     ${NC}"
 echo -e "${GREEN}==============================================${NC}"
-echo ""
-echo -e "访问地址:   ${GREEN}${BASE_URL}${NC}"
-echo -e "管理入口:   ${GREEN}${BASE_URL}/admin.php${NC}"
-echo ""
-echo -e "管理员账号: ${GREEN}${ADMIN_EMAIL}${NC}"
-echo -e "管理员密码: ${GREEN}${ADMIN_PASS}${NC}"
-echo ""
-echo -e "数据库名称: ${GREEN}${DB_NAME}${NC}"
-echo -e "数据库用户: ${GREEN}${DB_USER}${NC}"
-echo -e "数据库密码: ${GREEN}${DB_PASS}${NC}"
-echo ""
-echo -e "配置文件:   ${GREEN}$INSTALL_DIR/config.local.php${NC}"
-echo -e "日志文件:   ${GREEN}/var/log/mis_cron.log${NC}"
-echo ""
-if [ "$BT_PANEL" = true ]; then
-    echo -e "${YELLOW}宝塔面板用户请在面板中添加网站: ${NC}"
-    echo -e "  根目录: ${GREEN}$INSTALL_DIR${NC}"
-    echo -e "  PHP版本: ${GREEN}$PHP_VER${NC}"
-fi
-echo ""
-echo -e "${YELLOW}建议: 请尽快登录并修改默认管理员密码${NC}"
+echo -e "Access URL:    ${BLUE}${BASE_URL}${NC}"
+echo -e "Admin Panel:   ${BLUE}${BASE_URL}/admin.php${NC}"
+echo -e ""
+echo -e "Admin Email:   ${YELLOW}${ADMIN_EMAIL}${NC}"
+echo -e "Admin Password:${YELLOW}${ADMIN_PASS}${NC}"
+echo -e ""
+echo -e "Database Name: ${YELLOW}${DB_NAME}${NC}"
+echo -e "DB User:       ${YELLOW}${DB_USER}${NC}"
+echo -e "DB Password:   ${YELLOW}${DB_PASS}${NC}"
+echo -e ""
+echo -e "${YELLOW}Please login and change the default password!${NC}"
 echo -e "${GREEN}==============================================${NC}"

@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 function remote_can_ssh2(): bool
 {
-    return function_exists('ssh2_connect')
+    return extension_loaded('ssh2')
+        && function_exists('ssh2_connect')
         && function_exists('ssh2_auth_password')
         && function_exists('ssh2_exec')
         && function_exists('ssh2_fetch_stream');
@@ -13,7 +14,7 @@ function remote_can_ssh2(): bool
 function remote_exec_password(string $host, int $port, string $username, string $password, string $command): array
 {
     if (!remote_can_ssh2()) {
-        return ['ok' => false, 'output' => '', 'error' => 'ext-ssh2 not installed'];
+        return ['ok' => false, 'output' => '', 'error' => 'Server Configuration Error: php-ssh2 extension not installed. Please install it: apt install php-ssh2'];
     }
 
     $conn = @ssh2_connect($host, $port);
