@@ -41,6 +41,46 @@ Environment variables:
 
 3. Point your web server document root to this project directory (where `index.php` is).
 
+## Database Configuration
+
+**Important:** The default configuration uses `root` with no password, which often fails in modern MySQL/MariaDB installations.
+
+**Solutions:**
+
+1. **Recommended:** Use the web installer at `web_install.php` to set up your database properly
+2. Create a `config.local.php` file with your database credentials:
+
+```php
+<?php
+return [
+    'db' => [
+        'dsn' => 'mysql:host=127.0.0.1;dbname=mis;charset=utf8mb4',
+        'user' => 'your_db_user',  // e.g., 'mis_setup' if using install.sh
+        'pass' => 'your_db_password',  // e.g., 'MisTemp123!' if using install.sh
+    ],
+    'app_key' => 'your-secret-key-here',
+];
+```
+
+3. Use environment variables:
+
+```bash
+export MIS_DB_USER='your_db_user'
+export MIS_DB_PASS='your_db_password'
+export MIS_DB_DSN='mysql:host=127.0.0.1;dbname=mis;charset=utf8mb4'
+export MIS_APP_KEY='your-secret-key-here'
+```
+
+## Troubleshooting
+
+**Error: "Access denied for user 'root'@'localhost'"**
+
+This occurs when MySQL/MariaDB doesn't allow root access without authentication. Solutions:
+
+1. Use the web installer (`web_install.php`) - it creates proper database credentials
+2. Create a `config.local.php` file with valid database credentials
+3. If you used `install.sh`, use user `mis_setup` with password `MisTemp123!`
+
 ## Entry points
 
 - User: `index.php`
