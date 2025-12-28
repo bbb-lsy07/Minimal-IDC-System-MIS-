@@ -66,7 +66,7 @@ function admin_products_controller_edit(): void
             if (!$errors) {
                 if ($id > 0) {
                     db_exec(
-                        'UPDATE products\n                         SET name=:name, delivery_mode=:dm, billing_mode=:bm, price_json=:pj, status=:st\n                         WHERE id=:id',
+                        'UPDATE products SET name=:name, delivery_mode=:dm, billing_mode=:bm, price_json=:pj, status=:st WHERE id=:id',
                         [
                             'name' => $name,
                             'dm' => $deliveryMode,
@@ -79,7 +79,7 @@ function admin_products_controller_edit(): void
                     flash_set('success', 'Product updated.');
                 } else {
                     db_exec(
-                        'INSERT INTO products (name, delivery_mode, billing_mode, price_json, status)\n                         VALUES (:name, :dm, :bm, :pj, :st)',
+                        'INSERT INTO products (name, delivery_mode, billing_mode, price_json, status) VALUES (:name, :dm, :bm, :pj, :st)',
                         [
                             'name' => $name,
                             'dm' => $deliveryMode,
