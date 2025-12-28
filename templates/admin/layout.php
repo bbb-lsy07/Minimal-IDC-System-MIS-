@@ -10,6 +10,8 @@ extract($__vars, EXTR_SKIP);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIS 管理后台</title>
+  <!-- 基础样式 (必须添加这一行) -->
+  <link href="<?= e(asset_url('css/style.css')) ?>" rel="stylesheet">
   <!-- HKMC 风格 CSS -->
   <link href="<?= e(asset_url('css/hkmc-style.css')) ?>" rel="stylesheet">
   <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">

@@ -88,9 +88,10 @@ fi
 
 git clone "$GITHUB_REPO" "$INSTALL_DIR" || { log_error "代码下载失败"; exit 1; }
 
-# 设置权限
+# 设置权限 (确保 Nginx 可读取静态资源)
 chown -R www-data:www-data "$INSTALL_DIR"
-chmod -R 755 "$INSTALL_DIR"
+find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
+find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
 
 # 6. 配置 Nginx
 log_info "步骤 4: 配置 Web 服务器..."
