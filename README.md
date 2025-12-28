@@ -2,6 +2,20 @@
 
 A lightweight IDC management system MVP written in plain PHP.
 
+## Quick Start (Auto Install)
+
+For Ubuntu 20.04/22.04 LTS:
+
+```bash
+wget https://raw.githubusercontent.com/bbb-lsy07/Minimal-IDC-System-MIS-/main/install.sh && sudo bash install.sh
+```
+
+The script will:
+- Install Nginx, PHP, MariaDB
+- Setup the database and default admin user (`admin@example.com` / `admin123`)
+- Configure cron jobs for billing
+- Generate secure config file with random keys
+
 ## Requirements
 
 - PHP 8.1+ (session enabled)
