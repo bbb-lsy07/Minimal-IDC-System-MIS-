@@ -1,0 +1,77 @@
+/* --------------- 针对 Figma Sidebar 的Skeleton Styles --------------- */
+.fb-sidebar {
+  width: 264px; /* Figma Sidebar 宽度 */
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.fb-sidebar-account-and-notifications { /* 账户名区域 */
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.fb-sidebar-searchbar { /* 搜索框 */
+  padding: 0 8px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+.fb-sidebar-row { /* 通用侧边栏项 */
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px; /* 增加间距 */
+}
+.fb-sidebar-row > div:nth-child(2) { /* 调整文字占位符的 margin-left */
+  margin-left: 12px;
+}
+.fb-divider {
+  height: 1px;
+  background-color: var(--color-border, rgba(0, 0, 0, 0.1));
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+.fb-circle-16, .fb-rectangle-16 { /* 占位符骨架的共用颜色 */
+    background-color: var(--color-bg-secondary, #f0f0f0);
+}
+
+/* Additional Figma-like classes mentioned in the prompt */
+.sidebar--navDefault--pYuzm {
+    /* Base for sidebar nav */
+}
+.sidebar--navContent--15V3f {
+    padding-right: 8px;
+}
+.sidebar_row--sidebarRowContainer--LCEYg {
+    width: 100%;
+    padding: 8px 16px;
+    margin: 0;
+    background: none;
+    border: none;
+    text-align: left;
+}
+.sidebar_row--sidebarRowRedesigned--sjKQW {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    color: #555;
+}
+.sidebar_row--sidebarRowSelected--3D77W {
+    background-color: #e0f7fa;
+    color: #3cb2b8;
+}
+.sidebar_row--sidebarRowRedesigned--sjKQW:hover {
+    background-color: #f0f0f0;
+}
+.sidebar--divider--sHsz4 {
+    height: 1px;
+    background-color: #eee;
+    margin: 16px 8px;
+}

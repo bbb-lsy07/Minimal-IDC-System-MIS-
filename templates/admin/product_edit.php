@@ -55,11 +55,13 @@ $priceJson = $isEdit ? (string)$product['price_json'] : "{\n  \"month\": 10,\n  
 
     <div class="mt-4">
       <label class="form-label fw-bold">定价配置 (JSON)</label>
-      <div class="bg-light p-2 rounded border">
-        <textarea class="form-control font-monospace border-0 bg-light" name="price_json" rows="8"><?= e($priceJson) ?></textarea>
+      <div class="border rounded overflow-hidden">
+        <textarea class="form-control font-monospace border-0 bg-light" name="price_json" rows="10" style="font-size: 13px;"><?= e($priceJson) ?></textarea>
       </div>
-      <div class="form-text text-muted mt-2">
-        <i class="fas fa-info-circle"></i> 周期示例: <code>{"month": 10, "year": 100}</code> | 按量示例: <code>{"per_second": 0.00002}</code>
+      <div class="form-text mt-2 text-muted">
+        <i class="fas fa-info-circle me-1"></i>
+        <span>周期计费示例: <code>{"month": 10, "year": 100}</code></span>
+        <span class="ms-3">按量计费示例: <code>{"per_second": 0.00002}</code></span>
       </div>
     </div>
 

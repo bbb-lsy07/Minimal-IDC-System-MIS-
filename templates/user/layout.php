@@ -10,11 +10,16 @@ extract($__vars, EXTR_SKIP);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIS 云服务控制台</title>
+  
+  <!-- 引入 Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
   <!-- HKMC 风格 CSS -->
   <link href="<?= e(asset_url('css/hkmc-style.css')) ?>" rel="stylesheet">
+  <!-- Figma 风格的核心 CSS -->
+  <link href="<?= e(asset_url('css/figma_custom.css')) ?>" rel="stylesheet">
+
   <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
-  <!-- Bootstrap 5 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   
   <style>
     body { 
@@ -43,10 +48,29 @@ extract($__vars, EXTR_SKIP);
         padding-bottom: 15px;
         color: #333;
     }
-    .nav-item { list-style: none; }
-    .header-actions .btn { padding: 8px 20px; color: #fff; }
-    .navbar { padding: 0; }
-    .navbar-nav .nav-link { padding: 15px 20px; }
+    
+    .nav-container .nav-item {
+        list-style: none;
+        padding: 8px 16px;
+        margin: 0;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: background-color 0.2s ease, color 0.2s ease;
+        color: #333;
+        font-weight: 500;
+        display: inline-block;
+    }
+    .nav-container .nav-item.active {
+        background-color: #e0f7fa;
+        color: #3cb2b8;
+    }
+    .nav-container .nav-item:hover {
+        background-color: #f0f0f0;
+    }
+    .nav-container .nav-item i {
+        margin-right: 8px;
+        color: #3cb2b8;
+    }
   </style>
 </head>
 <body>
@@ -59,20 +83,20 @@ extract($__vars, EXTR_SKIP);
       </div>
       <div class="header-actions">
         <?php if ($user): ?>
-            <span class="me-3 text-dark">欢迎, <?= e($user['email']) ?></span>
-            <span class="me-3 text-dark">余额: ￥<?= e($user['balance']) ?></span>
-            <a href="<?= e(url_with_action('index.php', 'logout')) ?>" class="btn btn-primary" style="background-color:#f55053;">退出</a>
+            <span class="me-3 text-dark d-none d-md-inline">欢迎, <?= e($user['email']) ?></span>
+            <span class="me-3 text-dark fw-bold">余额: ￥<?= e($user['balance']) ?></span>
+            <a href="<?= e(url_with_action('index.php', 'logout')) ?>" class="btn btn-sm btn-danger">退出</a>
         <?php else: ?>
-            <button class="btn btn-primary" onclick="window.location.href='<?= e(url_with_action('index.php', 'login')) ?>'">登录</button>
-            <button class="btn btn-primary" onclick="window.location.href='<?= e(url_with_action('index.php', 'register')) ?>'">注册</button>
+            <a href="<?= e(url_with_action('index.php', 'login')) ?>" class="btn btn-sm btn-primary">登录</a>
+            <a href="<?= e(url_with_action('index.php', 'register')) ?>" class="btn btn-sm btn-outline-primary ms-2">注册</a>
         <?php endif; ?>
       </div>
     </div>
 
     <!-- Navigation -->
-    <div class="nav-container">
-      <div class="container">
-        <nav class="d-flex gap-3">
+    <div class="nav-container border-bottom bg-white shadow-sm">
+      <div class="container py-2">
+        <nav class="d-flex gap-2">
           <a class="nav-item <?= $__template == 'user/dashboard.php' ? 'active' : '' ?>" href="<?= e(url_with_action('index.php', 'dashboard')) ?>">
             <i class="fas fa-home"></i> 概览
           </a>
@@ -91,7 +115,7 @@ extract($__vars, EXTR_SKIP);
   </header>
 
   <!-- Flash Messages -->
-  <div class="container mt-3">
+  <div class="container mt-4">
     <?php if (!empty($flash)): ?>
       <div class="alert alert-<?= $flash['type'] === 'error' ? 'danger' : 'success' ?> alert-dismissible fade show shadow-sm">
         <?= e($flash['message']) ?>
@@ -101,16 +125,16 @@ extract($__vars, EXTR_SKIP);
   </div>
 
   <!-- Main Content Area -->
-  <div class="dashboard-container">
+  <main class="dashboard-container">
       <?php require template_path($__template); ?>
-  </div>
+  </main>
 
   <!-- Footer -->
-  <div class="footer">
-    <div class="copyright">
+  <footer class="footer mt-5 py-4 border-top bg-white">
+    <div class="container text-center text-muted small">
         MIS Cloud 版权所有 Copyright © <?= date('Y') ?> All Rights Reserved.
     </div>
-  </div>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
