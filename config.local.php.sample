@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+// This is a SAMPLE configuration file. Copy this to config.local.php and customize it.
+// config.local.php is ignored by git and should contain your local secrets.
+
+return [
+    'db' => [
+        // Database connection settings
+        // Default: 'mysql:host=127.0.0.1;dbname=mis;charset=utf8mb4'
+        'dsn' => 'mysql:host=127.0.0.1;dbname=mis;charset=utf8mb4',
+        
+        // Database username
+        // Default: 'root' (but this often fails in modern MySQL/MariaDB installations)
+        // If you used the install.sh script, it creates 'mis_setup' user with password 'MisTemp123!'
+        'user' => 'mis_setup', // Change this to your database username
+        
+        // Database password
+        // Default: '' (empty) - this is insecure!
+        'pass' => 'MisTemp123!', // Change this to your database password
+    ],
+    
+    'app_key' => 'your-secret-app-key-here', // Change this to a random 32+ character string
+    
+    // You can also override other settings from config.php here
+    // 'base_url' => 'https://your-domain.com',
+    // 'timezone' => 'America/New_York',
+];
