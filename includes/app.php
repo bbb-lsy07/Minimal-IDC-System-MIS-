@@ -63,5 +63,16 @@ function base_url(): string
     $scheme = $https ? 'https' : 'http';
     $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
 
-    return $scheme . '://' . $host;
+    $script = (string)($_SERVER['SCRIPT_NAME'] ?? '/');
+    $dir = str_replace('\\', '/', dirname($script));
+
+    if (preg_match('#/api$#', $dir)) {
+        $dir = str_replace('\\', '/', dirname($dir));
+    }
+
+    if ($dir === '/' || $dir === '.') {
+        $dir = '';
+    }
+
+    return $scheme . '://' . $host . $dir;
 }

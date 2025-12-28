@@ -79,6 +79,103 @@ function services_controller_reboot_user(): void
     redirect(url_with_action('index.php', 'service', ['id' => $id]));
 }
 
+function services_controller_install_monitor_user(): void
+{
+    $user = require_login();
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        redirect(url_with_action('index.php', 'services'));
+    }
+
+    if (!csrf_verify($_POST['csrf_token'] ?? null)) {
+        flash_set('error', 'Invalid CSRF token.');
+        redirect(url_with_action('index.php', 'services'));
+    }
+
+    $id = (int)($_POST['id'] ?? 0);
+    $service = db_fetch_one('SELECT * FROM services WHERE id = :id AND user_id = :uid LIMIT 1', ['id' => $id, 'uid' => (int)$user['id']]);
+    if (!$service) {
+        flash_set('error', 'Service not found.');
+        redirect(url_with_action('index.php', 'services'));
+    }
+
+    if (($service['ip'] ?? '') === '' || ($service['username'] ?? '') === '' || ($service['password_enc'] ?? '') === '') {
+        flash_set('error', 'Service connection info not set.');
+        redirect(url_with_action('index.php', 'service', ['id' => $id]));
+    }
+
+    $token = monitor_get_or_create_token((int)$service['id']);
+    $url = base_url() . '/api/agent_install.php?token=' . rawurlencode($token);
+
+    try {
+        $pass = decrypt_secret((string)$service['password_enc']);
+    } catch (Throwable $e) {
+        flash_set('error', 'Unable to decrypt password.');
+        redirect(url_with_action('index.php', 'service', ['id' => $id]));
+    }
+
+    $cmd = 'curl -fsSL ' . escapeshellarg($url) . ' | bash 2>&1';
+    $res = remote_exec_password((string)$service['ip'], (int)$service['port'], (string)$service['username'], $pass, $cmd);
+
+    if ($res['ok']) {
+        $out = trim((string)($res['output'] ?? ''));
+        $out = $out === '' ? '' : (' Output: ' . substr($out, 0, 300));
+        flash_set('success', 'Monitor agent install executed.' . $out);
+    } else {
+        flash_set('error', 'Install failed: ' . (string)$res['error']);
+    }
+
+    redirect(url_with_action('index.php', 'service', ['id' => $id]));
+}
+
+function admin_services_controller_install_monitor(): void
+{
+    require_admin();
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        redirect(url_with_action('admin.php', 'services'));
+    }
+
+    if (!csrf_verify($_POST['csrf_token'] ?? null)) {
+        flash_set('error', 'Invalid CSRF token.');
+        redirect(url_with_action('admin.php', 'services'));
+    }
+
+    $id = (int)($_POST['id'] ?? 0);
+    $service = db_fetch_one('SELECT * FROM services WHERE id = :id LIMIT 1', ['id' => $id]);
+    if (!$service) {
+        flash_set('error', 'Service not found.');
+        redirect(url_with_action('admin.php', 'services'));
+    }
+
+    if (($service['ip'] ?? '') === '' || ($service['username'] ?? '') === '' || ($service['password_enc'] ?? '') === '') {
+        flash_set('error', 'Service connection info not set.');
+        redirect(url_with_action('admin.php', 'service_deliver', ['id' => $id]));
+    }
+
+    $token = monitor_get_or_create_token((int)$service['id']);
+    $url = base_url() . '/api/agent_install.php?token=' . rawurlencode($token);
+
+    try {
+        $pass = decrypt_secret((string)$service['password_enc']);
+    } catch (Throwable $e) {
+        flash_set('error', 'Unable to decrypt password.');
+        redirect(url_with_action('admin.php', 'service_deliver', ['id' => $id]));
+    }
+
+    $cmd = 'curl -fsSL ' . escapeshellarg($url) . ' | bash 2>&1';
+    $res = remote_exec_password((string)$service['ip'], (int)$service['port'], (string)$service['username'], $pass, $cmd);
+
+    if ($res['ok']) {
+        $out = trim((string)($res['output'] ?? ''));
+        $out = $out === '' ? '' : (' Output: ' . substr($out, 0, 300));
+        flash_set('success', 'Monitor agent install executed.' . $out);
+    } else {
+        flash_set('error', 'Install failed: ' . (string)$res['error']);
+    }
+
+    redirect(url_with_action('admin.php', 'service_deliver', ['id' => $id]));
+}
+
 function admin_services_controller_list(): void
 {
     require_admin();
@@ -149,5 +246,7 @@ function admin_services_controller_deliver(): void
         }
     }
 
-    render('admin/service_deliver.php', ['service' => $service, 'errors' => $errors], 'admin/layout.php');
+    $token = monitor_get_or_create_token((int)$service['id']);
+
+    render('admin/service_deliver.php', ['service' => $service, 'errors' => $errors, 'token' => $token], 'admin/layout.php');
 }

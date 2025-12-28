@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 function remote_can_ssh2(): bool
 {
-    return function_exists('ssh2_connect') && function_exists('ssh2_auth_password') && function_exists('ssh2_exec');
+    return function_exists('ssh2_connect')
+        && function_exists('ssh2_auth_password')
+        && function_exists('ssh2_exec')
+        && function_exists('ssh2_fetch_stream');
 }
 
 function remote_exec_password(string $host, int $port, string $username, string $password, string $command): array
@@ -27,11 +30,24 @@ function remote_exec_password(string $host, int $port, string $username, string 
         return ['ok' => false, 'output' => '', 'error' => 'SSH exec failed'];
     }
 
-    stream_set_blocking($stream, true);
-    $output = stream_get_contents($stream);
-    fclose($stream);
+    $errStream = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
 
-    return ['ok' => true, 'output' => (string)$output, 'error' => ''];
+    stream_set_blocking($stream, true);
+    if (is_resource($errStream)) {
+        stream_set_blocking($errStream, true);
+    }
+
+    $output = stream_get_contents($stream);
+    $err = is_resource($errStream) ? stream_get_contents($errStream) : '';
+
+    fclose($stream);
+    if (is_resource($errStream)) {
+        fclose($errStream);
+    }
+
+    $combined = trim((string)$output . "\n" . (string)$err);
+
+    return ['ok' => true, 'output' => $combined, 'error' => ''];
 }
 
 function remote_reboot(string $host, int $port, string $username, string $password): array

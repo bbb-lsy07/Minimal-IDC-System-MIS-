@@ -12,15 +12,26 @@ $diskSeries = array_map(fn($r) => (float)$r['disk'], $logSeries);
   <div>SSH: <b><?= e(($service['username'] ?? '-') . '@' . ($service['ip'] ?? '-') . ':' . ($service['port'] ?? '-')) ?></b></div>
   <div>Expire: <b><?= e($service['expire_at'] ?? '-') ?></b></div>
 
-  <div style="margin-top:12px;">
-    <form method="post" action="<?= e(url_with_action('index.php', 'service_reboot')) ?>">
-      <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-      <input type="hidden" name="id" value="<?= e($service['id']) ?>">
-      <button class="btn" type="submit">Reboot (SSH)</button>
-    </form>
-    <div class="small" style="margin-top:8px;">
-      Reboot requires ext-ssh2 and admin must deliver IP/username/password.
+  <div style="margin-top:12px;" class="row">
+    <div>
+      <form method="post" action="<?= e(url_with_action('index.php', 'service_reboot')) ?>">
+        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+        <input type="hidden" name="id" value="<?= e($service['id']) ?>">
+        <button class="btn" type="submit">Reboot (SSH)</button>
+      </form>
     </div>
+
+    <div>
+      <form method="post" action="<?= e(url_with_action('index.php', 'service_install_monitor')) ?>">
+        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+        <input type="hidden" name="id" value="<?= e($service['id']) ?>">
+        <button class="btn secondary" type="submit">Install Monitor (SSH)</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="small" style="margin-top:8px;">
+    SSH actions require ext-ssh2 and admin must deliver IP/username/password.
   </div>
 </div>
 

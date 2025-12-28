@@ -31,12 +31,18 @@ function auth_logout(): void
     }
 }
 
+function auth_entrypoint(): string
+{
+    $script = basename((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'));
+    return $script === 'admin.php' ? 'admin.php' : 'index.php';
+}
+
 function require_login(): array
 {
     $user = auth_user();
     if (!$user) {
         flash_set('error', 'Please login first.');
-        redirect(url_with_action('index.php', 'login'));
+        redirect(url_with_action(auth_entrypoint(), 'login'));
     }
 
     return $user;

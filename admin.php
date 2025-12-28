@@ -40,6 +40,9 @@ switch ($action) {
     case 'service_deliver':
         admin_services_controller_deliver();
         break;
+    case 'service_install_monitor':
+        admin_services_controller_install_monitor();
+        break;
 
     case 'users':
         admin_users_controller_list();

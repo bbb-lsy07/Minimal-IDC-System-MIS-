@@ -39,8 +39,25 @@
     </div>
 
     <div style="margin-top:12px;">
-      <button class="btn" type="submit">Activate</button>
+      <button class="btn" type="submit">Activate / Update</button>
       <a class="btn secondary" href="<?= e(url_with_action('admin.php', 'services')) ?>">Back</a>
     </div>
   </form>
+</div>
+
+<div class="card">
+  <h3>Monitoring</h3>
+  <div class="small">Push token:</div>
+  <pre><?= e($token ?? '') ?></pre>
+
+  <div class="small">Manual install (run on target server as root):</div>
+  <pre>curl -fsSL "<?= e(base_url()) ?>/api/agent_install.php?token=<?= e($token ?? '') ?>" | bash</pre>
+
+  <form method="post" action="<?= e(url_with_action('admin.php', 'service_install_monitor')) ?>" style="margin-top:12px;">
+    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+    <input type="hidden" name="id" value="<?= e($service['id']) ?>">
+    <button class="btn secondary" type="submit">Install Monitor via SSH</button>
+  </form>
+
+  <div class="small" style="margin-top:8px;">Requires ext-ssh2 and valid SSH credentials saved for the service.</div>
 </div>

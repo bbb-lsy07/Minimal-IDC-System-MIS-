@@ -42,6 +42,9 @@ switch ($action) {
     case 'service_reboot':
         services_controller_reboot_user();
         break;
+    case 'service_install_monitor':
+        services_controller_install_monitor_user();
+        break;
     case 'home':
     default:
         if (auth_user()) {
