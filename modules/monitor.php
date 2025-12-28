@@ -38,6 +38,32 @@ function monitor_touch_token(string $token): void
     db_exec('UPDATE monitor_tokens SET last_seen_at = NOW() WHERE token = :token', ['token' => $token]);
 }
 
+function monitor_check_netdata_availability(string $ip, int $port = 19999): bool
+{
+    $url = "http://{$ip}:{$port}/api/v1/info";
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 2,
+        CURLOPT_CONNECTTIMEOUT => 1,
+        CURLOPT_HEADER => false,
+    ]);
+    curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return $httpCode === 200;
+}
+
+function monitor_get_netdata_iframe_url(string $ip, int $port = 19999, string $path = 'system.cpu'): string
+{
+    return "http://{$ip}:{$port}/#theme=slate;chart={$path}";
+}
+
+function monitor_get_netdata_direct_chart_url(string $ip, int $port = 19999, string $chart = 'system.cpu'): string
+{
+    return "http://{$ip}:{$port}/api/v1/data?chart={$chart}&points=60&group=average&gtime=0&options=ms|flip|jsonwrap|nonzero&after=-300";
+}
+
 function monitor_insert_log(int $serviceId, array $data): void
 {
     db_exec(
