@@ -56,23 +56,28 @@ apt-get install -y software-properties-common curl git unzip wget cron ufw lsb-r
 log_info "正在安装 Nginx 和数据库..."
 apt-get install -y nginx mariadb-server mariadb-client
 
-# 4. 安装 PHP (修复版，强制使用 PHP 7.4 以获得最佳兼容性)
-log_info "步骤 2: 安装 PHP 环境 (PHP 7.4)..."
+# 4. 安装 PHP (PHP 8.2，满足 match 表达式等语法要求)
+log_info "步骤 2: 安装 PHP 环境 (PHP 8.2)..."
 
 # 添加 PHP 源
 add-apt-repository ppa:ondrej/php -y
 apt-get update -y
 
-# 安装 PHP 7.4 及扩展
-apt-get install -y php7.4-fpm php7.4-cli php7.4-mysql php7.4-curl \
-    php7.4-mbstring php7.4-xml php7.4-zip php7.4-bcmath \
-    php7.4-ssh2 libssh2-1-dev
+# 安装 PHP 8.2 及扩展
+apt-get install -y php8.2-fpm php8.2-cli php8.2-mysql php8.2-curl \
+    php8.2-mbstring php8.2-xml php8.2-zip php8.2-bcmath \
+    php8.2-ssh2 libssh2-1-dev
+
+# 如果找不到 php8.2-ssh2，尝试通用包名
+if ! dpkg -l | grep -q php8.2-ssh2; then
+    apt-get install -y php-ssh2
+fi
 
 # 启动 PHP
-systemctl start php7.4-fpm
-systemctl enable php7.4-fpm
+systemctl start php8.2-fpm
+systemctl enable php8.2-fpm
 
-PHP_SOCK="/run/php/php7.4-fpm.sock"
+PHP_SOCK="/run/php/php8.2-fpm.sock"
 
 # 5. 代码部署
 log_info "步骤 3: 下载代码..."
