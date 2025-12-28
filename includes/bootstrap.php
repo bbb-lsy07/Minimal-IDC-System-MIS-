@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 define('MIS_ROOT', dirname(__DIR__));
 
+// Critical extension checks - fail early with clear messages
+if (!extension_loaded('curl')) {
+    die('Critical Error: PHP CURL extension is required.');
+}
+if (!extension_loaded('pdo_mysql')) {
+    die('Critical Error: PHP PDO_MYSQL extension is required.');
+}
+
 $GLOBALS['MIS_CONFIG'] = require MIS_ROOT . '/config.php';
 
 date_default_timezone_set((string)($GLOBALS['MIS_CONFIG']['timezone'] ?? 'UTC'));

@@ -26,6 +26,9 @@ $script = <<<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure PATH is available in minimal environments
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 SERVER_URL="__SERVER__"
 TOKEN="__TOKEN__"
 
@@ -37,6 +40,9 @@ fi
 cat > /usr/local/bin/mis_monitor.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Ensure PATH is available in minimal environments
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 SERVER_URL="__SERVER__"
 TOKEN="__TOKEN__"
