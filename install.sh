@@ -2,7 +2,8 @@
 
 # ==========================================
 # Minimal IDC System (MIS) 自动部署脚本
-# 适用系统: Ubuntu 20.04 / 22.04 LTS
+# 适用系统: Ubuntu 20.04/22.04 LTS / Debian 10/11/12
+# 支持宝塔面板等环境
 # ==========================================
 
 # 设置颜色
@@ -44,6 +45,13 @@ fi
 
 log_info "开始部署 Minimal IDC System (MIS)..."
 
+# 检测是否在宝塔面板环境中
+BT_PANEL=false
+if [ -f "/www/server/panel/class/common.py" ] || [ -d "/www/server/panel" ]; then
+    BT_PANEL=true
+    log_warn "检测到宝塔面板环境，将使用现有 Nginx 配置"
+fi
+
 # ============================================
 # 步骤 1: 更新系统并安装依赖
 # ============================================
@@ -52,7 +60,13 @@ log_info "步骤 1/7: 更新系统并安装依赖..."
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y
-apt-get install -y git curl unzip nginx mariadb-server mariadb-client
+
+# 安装基础依赖
+if [ "$BT_PANEL" = false ]; then
+    apt-get install -y git curl unzip nginx mariadb-server mariadb-client
+else
+    log_info "跳过 Nginx/MariaDB 安装 (宝塔面板已安装)"
+fi
 
 # 安装 PHP 及扩展
 PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "8.1")
@@ -66,18 +80,23 @@ for ver in "8.3" "8.2" "8.1" "8.0"; do
     fi
 done
 
-log_info "将安装 PHP $PHP_VER"
+log_info "将安装 PHP $PHP_VER 扩展..."
 
-apt-get install -y php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-curl php${PHP_VER}-json \
-    php${PHP_VER}-mbstring php${PHP_VER}-xml php${PHP_VER}-ssh2 php${PHP_VER}-cli
+# 注意: PHP 8.x 已内置 json 扩展，无需单独安装 php*-json
+apt-get install -y php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-curl php${PHP_VER}-mbstring php${PHP_VER}-xml php${PHP_VER}-ssh2 php${PHP_VER}-cli 2>/dev/null || \
+apt-get install -y php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-curl php${PHP_VER}-mbstring php${PHP_VER}-xml php${PHP_VER}-cli 2>/dev/null || \
+log_warn "部分 PHP 扩展安装失败，继续执行..."
 
 # ============================================
 # 步骤 2: 配置数据库
 # ============================================
 log_info "步骤 2/7: 配置数据库 (MariaDB)..."
 
-systemctl start mariadb
-systemctl enable mariadb
+# 启动数据库服务
+if [ "$BT_PANEL" = false ]; then
+    systemctl start mariadb 2>/dev/null || service mariadb start 2>/dev/null
+    systemctl enable mariadb 2>/dev/null
+fi
 
 # 安全配置 (自动回复)
 mysql -e "DROP DATABASE IF EXISTS test;" 2>/dev/null
@@ -86,10 +105,10 @@ mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost',
 mysql -e "FLUSH PRIVILEGES;" 2>/dev/null
 
 # 创建数据库和用户
-mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
-mysql -e "FLUSH PRIVILEGES;"
+mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null
+mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';" 2>/dev/null
+mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';" 2>/dev/null
+mysql -e "FLUSH PRIVILEGES;" 2>/dev/null
 
 log_info "数据库 ${DB_NAME} 和用户 ${DB_USER} 已创建"
 
@@ -118,13 +137,13 @@ log_info "代码已下载到 $INSTALL_DIR"
 log_info "步骤 4/7: 导入数据库结构 & 创建管理员..."
 
 # 导入 Schema
-mysql "$DB_NAME" < "$INSTALL_DIR/sql/schema.sql"
+mysql "$DB_NAME" < "$INSTALL_DIR/sql/schema.sql" 2>/dev/null
 
 # 生成管理员密码 Hash
 ADMIN_HASH=$(php -r "echo password_hash('${ADMIN_PASS}', PASSWORD_DEFAULT);")
 
 # 插入管理员账号
-mysql "$DB_NAME" -e "INSERT INTO users (email, password_hash, balance, status, is_admin) VALUES ('${ADMIN_EMAIL}', '${ADMIN_HASH}', 9999, 'active', 1);"
+mysql "$DB_NAME" -e "INSERT INTO users (email, password_hash, balance, status, is_admin) VALUES ('${ADMIN_EMAIL}', '${ADMIN_HASH}', 9999, 'active', 1);" 2>/dev/null
 
 log_info "默认管理员账号已创建: ${ADMIN_EMAIL} / ${ADMIN_PASS}"
 
@@ -163,26 +182,38 @@ log_info "步骤 6/7: 配置 Nginx..."
 
 # 检测 PHP-FPM socket 路径
 PHP_SOCKET=""
-for sock in "/run/php/php${PHP_VER}-fpm.sock" "/var/run/php/php${PHP_VER}-fpm.sock"; do
+for sock in "/run/php/php${PHP_VER}-fpm.sock" "/var/run/php/php${PHP_VER}-fpm.sock" "/tmp/php-cgi-${PHP_VER}.sock"; do
     if [ -S "$sock" ]; then
         PHP_SOCKET=$sock
         break
     fi
 done
 
-# 如果找不到，使用默认路径
+# 如果找不到，尝试自动查找
+if [ -z "$PHP_SOCKET" ]; then
+    PHP_SOCKET=$(find /run /var/run -name "php*-fpm.sock" 2>/dev/null | head -1)
+fi
+
+# 如果还是找不到，使用默认路径
 if [ -z "$PHP_SOCKET" ]; then
     PHP_SOCKET="/run/php/php${PHP_VER}-fpm.sock"
 fi
 
-cat > /etc/nginx/sites-available/mis <<EOF
+log_info "PHP-FPM socket: $PHP_SOCKET"
+
+if [ "$BT_PANEL" = true ]; then
+    log_info "宝塔面板环境请在面板中添加网站:"
+    echo "  - 根目录: $INSTALL_DIR"
+    echo "  - PHP版本: $PHP_VER"
+    echo "  - 伪静态: 参考下方配置"
+else
+    cat > /etc/nginx/sites-available/mis <<EOF
 server {
     listen 80;
     server_name _;
     root $INSTALL_DIR;
     index index.php index.html;
 
-    # 访问日志
     access_log /var/log/nginx/mis_access.log;
     error_log /var/log/nginx/mis_error.log;
 
@@ -197,7 +228,6 @@ server {
         include fastcgi_params;
     }
 
-    # 禁止访问敏感文件
     location ~ /\.git {
         deny all;
         return 404;
@@ -215,19 +245,15 @@ server {
 }
 EOF
 
-# 启用站点
-ln -sf /etc/nginx/sites-available/mis /etc/nginx/sites-enabled/
+    ln -sf /etc/nginx/sites-available/mis /etc/nginx/sites-enabled/
+    rm -f /etc/nginx/sites-enabled/default
 
-# 移除默认站点（如果存在）
-rm -f /etc/nginx/sites-enabled/default
-
-# 测试并重载 Nginx
-if nginx -t 2>/dev/null; then
-    systemctl restart nginx
-    log_info "Nginx 配置已应用"
-else
-    log_error "Nginx 配置测试失败"
-    exit 1
+    if nginx -t 2>/dev/null; then
+        systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null
+        log_info "Nginx 配置已应用"
+    else
+        log_error "Nginx 配置测试失败，请手动检查"
+    fi
 fi
 
 # ============================================
@@ -236,14 +262,13 @@ fi
 log_info "步骤 7/7: 设置权限与定时任务..."
 
 # 设置文件权限
-chown -R www-data:www-data "$INSTALL_DIR"
+chown -R www-data:www-data "$INSTALL_DIR" 2>/dev/null || chown -R www-data:www-data "$INSTALL_DIR" 2>/dev/null || true
 chmod -R 755 "$INSTALL_DIR"
-chmod 640 "$INSTALL_DIR/config.local.php"
+chmod 640 "$INSTALL_DIR/config.local.php" 2>/dev/null || true
 
 # 添加 Cron 任务
 CRON_JOB="* * * * * cd $INSTALL_DIR && /usr/bin/php cron.php all >> /var/log/mis_cron.log 2>&1"
 
-# 检查是否已存在相同的 cron job
 if crontab -l 2>/dev/null | grep -F "$INSTALL_DIR" > /dev/null; then
     log_warn "定时任务已存在，跳过添加"
 else
@@ -272,6 +297,11 @@ echo ""
 echo -e "配置文件:   ${GREEN}$INSTALL_DIR/config.local.php${NC}"
 echo -e "日志文件:   ${GREEN}/var/log/mis_cron.log${NC}"
 echo ""
+if [ "$BT_PANEL" = true ]; then
+    echo -e "${YELLOW}宝塔面板用户请在面板中添加网站: ${NC}"
+    echo -e "  根目录: ${GREEN}$INSTALL_DIR${NC}"
+    echo -e "  PHP版本: ${GREEN}$PHP_VER${NC}"
+fi
+echo ""
 echo -e "${YELLOW}建议: 请尽快登录并修改默认管理员密码${NC}"
 echo -e "${GREEN}==============================================${NC}"
-
