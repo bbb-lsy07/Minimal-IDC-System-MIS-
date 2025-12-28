@@ -76,3 +76,8 @@ function base_url(): string
 
     return $scheme . '://' . $host . $dir;
 }
+
+function asset_url(string $path): string
+{
+    return base_url() . '/assets/' . ltrim($path, '/');
+}
