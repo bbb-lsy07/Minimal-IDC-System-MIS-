@@ -11,10 +11,12 @@ wget https://raw.githubusercontent.com/bbb-lsy07/Minimal-IDC-System-MIS-/main/in
 ```
 
 The script will:
-- Install Nginx, PHP 8.x, MariaDB
-- Setup the database and default admin user (`admin@example.com` / `admin123`)
-- Configure cron jobs for billing
-- Secure the installation
+- Install Nginx, PHP 8.2, MariaDB
+- Clone the repository to `/var/www/mis`
+- Create a database user `mis_setup` with password `MisTemp123!`
+- Auto-generate `config.local.php` with working database credentials
+- Configure firewall and optional SSL
+- You can then access the web installer at `http://your-ip/web_install.php`
 
 ## Requirements
 
@@ -43,7 +45,14 @@ Environment variables:
 
 ## Database Configuration
 
-**Important:** The default configuration uses `root` with no password, which often fails in modern MySQL/MariaDB installations.
+**If you used the `install.sh` script:**
+- Database credentials are automatically configured in `config.local.php`
+- Database user: `mis_setup`, password: `MisTemp123!`
+- You can access the application immediately after installation
+
+**Manual setup:**
+
+The default `config.php` uses `root` with no password, which often fails in modern MySQL/MariaDB installations.
 
 **Solutions:**
 

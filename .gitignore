@@ -5,6 +5,9 @@ config.local.php
 # Storage / logs
 storage/
 
+# Install script backups (from wget)
+install.sh.*
+
 # IDE
 .idea/
 .vscode/
