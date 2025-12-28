@@ -29,43 +29,69 @@ set -euo pipefail
 # Ensure PATH is available in minimal environments
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-SERVER_URL="__SERVER__"
-TOKEN="__TOKEN__"
+echo "Starting Netdata installation for MIS Cloud monitoring..."
 
-if ! command -v curl >/dev/null 2>&1; then
-  echo "curl not found" >&2
-  exit 1
+# Check if Netdata is already installed
+if command -v netdata >/dev/null 2>&1; then
+    echo "Netdata is already installed."
+    systemctl is-active --quiet netdata && echo "Netdata service is running."
+    exit 0
 fi
 
-cat > /usr/local/bin/mis_monitor.sh <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
+# Check for required commands
+for cmd in curl bash; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "ERROR: Required command '$cmd' not found. Please install it first." >&2
+        exit 1
+    fi
+done
 
-# Ensure PATH is available in minimal environments
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Determine OS package manager
+if [ -f /etc/debian_version ]; then
+    PKG_UPDATE="apt-get update -qq"
+    PKG_INSTALL="apt-get install -y --no-install-recommends"
+elif [ -f /etc/redhat-release ]; then
+    PKG_UPDATE="yum makecache"
+    PKG_INSTALL="yum install -y"
+else
+    echo "WARNING: Unknown Linux distribution. Attempting universal install..."
+fi
 
-SERVER_URL="__SERVER__"
-TOKEN="__TOKEN__"
+if [ -n "${PKG_UPDATE:-}" ]; then
+    echo "Updating package repository..."
+    $PKG_UPDATE
+fi
 
-cpu="$(LC_ALL=C top -bn1 | awk -F',' 'BEGIN{u=0} /Cpu\(s\)/{for(i=1;i<=NF;i++){if($i~/(^| )id/){gsub(/[^0-9.]/,"",$i); u=100-$i; break}}} END{printf "%.2f",u}')"
-mem="$(free | awk '/Mem:/{printf "%.2f", ($3/$2*100)}')"
-disk="$(df -P / | awk 'NR==2{gsub(/%/,"",$5); printf "%.2f", $5}')"
-load1="$(awk '{print $1}' /proc/loadavg)"
+# Install Netdata using kickstart (official method)
+echo "Downloading and installing Netdata..."
+if ! curl -fsSL "https://get.netdata.cloud/kickstart.sh" | bash -s -- --stable-channel --disable-telemetry; then
+    echo "ERROR: Failed to install Netdata. Please check network connectivity and permissions." >&2
+    exit 1
+fi
 
-curl -fsS -X POST \
-  -d "token=${TOKEN}" \
-  -d "cpu=${cpu}" \
-  -d "mem=${mem}" \
-  -d "disk=${disk}" \
-  -d "load1=${load1}" \
-  "${SERVER_URL}/api/push_monitor.php" >/dev/null
-EOF
+# Wait for Netdata to start
+sleep 3
+echo "Netdata installation completed."
 
-chmod +x /usr/local/bin/mis_monitor.sh
+# Open firewall port 19999 if firewall is active
+if systemctl is-active --quiet firewalld 2>/dev/null; then
+    echo "Configuring firewalld for Netdata..."
+    firewall-cmd --add-port=19999/tcp --permanent >/dev/null 2>&1 || true
+    firewall-cmd --reload >/dev/null 2>&1 || true
+elif command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+    echo "Configuring UFW for Netdata..."
+    ufw allow 19999/tcp >/dev/null 2>&1 || true
+fi
 
-( crontab -l 2>/dev/null | grep -v "mis_monitor.sh"; echo "*/2 * * * * /usr/local/bin/mis_monitor.sh >/dev/null 2>&1" ) | crontab -
+# Show status
+if systemctl is-active --quiet netdata; then
+    echo "✅ Netdata is installed and running on http://$(hostname -I | awk '{print $1}'):19999"
+    echo "📊 You can now access detailed real-time monitoring charts."
+else
+    echo "⚠️  Netdata installed but service not running. Check: systemctl status netdata"
+fi
 
-echo "installed: /usr/local/bin/mis_monitor.sh (every 2 minutes)"
+exit 0
 BASH;
 
 $script = str_replace(['__SERVER__', '__TOKEN__'], [$server, $token], $script);
